@@ -2,7 +2,7 @@
 
 Full CI/CD cycle for mk-store in Yandex Cloud:
 - source code in GitLab
-- build artifacts and images in Nexus
+- build artifacts and images in GitLab Container/Package Registry
 - quality gate in SonarQube
 - infrastructure in Terraform (IaC)
 - deployment to Kubernetes using Helm
@@ -10,7 +10,6 @@ Full CI/CD cycle for mk-store in Yandex Cloud:
 ## Services
 
 - GitLab: https://gitlab.praktikum-services.ru/std-036-33/mk-store
-- Nexus: https://nexus.praktikum-services.tech/
 - SonarQube: https://sonarqube.praktikum-services.ru/
 
 ## Repository structure
@@ -28,7 +27,8 @@ Full CI/CD cycle for mk-store in Yandex Cloud:
 ├── helm/
 │   └── mk-store/                 # Helm chart for app deployment
 ├── k8s/
-│   └── base/                     # Raw Kubernetes manifests
+│   ├── base/                     # Raw Kubernetes manifests
+│   └── observability/            # Grafana dashboard assets
 ├── infra/
 │   └── terraform/                # Yandex Cloud IaC + S3 state setup
 ├── docs/
@@ -85,25 +85,18 @@ Pipeline is defined in `.gitlab-ci.yml` and contains stages:
 
 ### Required GitLab CI/CD variables
 
-Nexus:
-- `NEXUS_USER`
-- `NEXUS_PASSWORD`
-- `NEXUS_DOCKER_REGISTRY`
-- `NEXUS_DOCKER_BACKEND_REPOSITORY`
-- `NEXUS_DOCKER_FRONTEND_REPOSITORY`
-- `NEXUS_HELM_REPOSITORY` (optional override)
-- `NEXUS_RAW_REPOSITORY` (optional override)
+GitLab Registry / deploy:
+- `KUBE_CONFIG_B64` (base64 kubeconfig)
+- `APP_HOST` (for ingress host)
+- `TLS_SECRET_NAME` (TLS secret)
+- `REGISTRY_PULL_USER` (GitLab Deploy Token username, recommended)
+- `REGISTRY_PULL_PASSWORD` (GitLab Deploy Token password/token, recommended)
+- `APP_JWT_SECRET` (optional app secret)
+- `ENABLE_SERVICE_MONITOR` (`true`/`false`)
 
 SonarQube:
 - `SONAR_HOST_URL`
 - `SONAR_TOKEN`
-
-Kubernetes deployment:
-- `KUBE_CONFIG_B64` (base64 kubeconfig)
-- `APP_HOST` (for ingress host)
-- `TLS_SECRET_NAME` (TLS secret)
-- `APP_JWT_SECRET` (optional app secret)
-- `ENABLE_SERVICE_MONITOR` (`true`/`false`)
 
 Terraform / Object Storage:
 - `TF_BACKEND_CONFIG` (content of `infra/terraform/backend.hcl`)
@@ -111,6 +104,16 @@ Terraform / Object Storage:
 - `ASSETS_BUCKET`
 - `AWS_ACCESS_KEY_ID`
 - `AWS_SECRET_ACCESS_KEY`
+
+Terraform provider vars (recommended in CI as protected/masked):
+- `TF_VAR_yc_token`
+- `TF_VAR_cloud_id`
+- `TF_VAR_folder_id`
+- `TF_VAR_ssh_public_key`
+- `TF_VAR_tfstate_bucket_name`
+- `TF_VAR_assets_bucket_name`
+- `TF_VAR_storage_access_key`
+- `TF_VAR_storage_secret_key`
 
 ## Infrastructure deployment (Terraform)
 
@@ -178,17 +181,17 @@ helm upgrade --install mk-store ./helm/mk-store \
 - Helm chart: `helm/mk-store`
 - production values example: `helm/mk-store/values.prod.yaml`
 
-Helm chart is packaged and versioned in CI, then published to Nexus.
+Helm chart is packaged and versioned in CI, then uploaded to GitLab Package Registry.
 
 ## Artifact versioning rules
 
-- Docker image tags:
+- Docker image tags (GitLab Container Registry):
   - release tag: `vX.Y.Z` (same value)
   - branch build: `CI_COMMIT_SHORT_SHA`
-- Backend binary in Nexus raw:
+- Backend binary (GitLab Generic Package Registry):
   - `vX.Y.Z` for releases
   - `0.1.<pipeline_iid>` for non-tag builds
-- Helm chart:
+- Helm chart (GitLab Generic Package Registry):
   - release tag: semantic version from git tag
   - branch build: `0.1.<pipeline_iid>`
 
@@ -231,7 +234,7 @@ No production secrets are stored in git.
 2. Merge request to `main`
 3. CI runs tests and build
 4. Create release tag `vX.Y.Z`
-5. CI publishes immutable artifacts to Nexus
+5. CI publishes immutable artifacts to GitLab Registry
 6. Run `deploy-production` for rollout
 
 ## Presentation plan

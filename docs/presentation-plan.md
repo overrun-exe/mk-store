@@ -2,12 +2,12 @@
 
 ## 1. Goal and architecture (1 min)
 - what mk-store does
-- target architecture: GitLab -> Nexus/SonarQube -> Yandex Cloud K8s
+- target architecture: GitLab CI/CD + Registry + SonarQube -> Yandex Cloud K8s
 
 ## 2. CI/CD flow (2 min)
 - explain `.gitlab-ci.yml` stages
 - show versioning strategy for image, binary, and chart
-- show where artifacts are stored in Nexus
+- show where artifacts are stored in GitLab Container/Package Registry
 
 ## 3. Infrastructure as code (2 min)
 - review `infra/terraform` modules

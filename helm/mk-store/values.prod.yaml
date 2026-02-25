@@ -1,7 +1,7 @@
 namespace: mk-store
 
 imagePullSecrets:
-  - name: nexus-registry
+  - name: gitlab-registry
 
 backend:
   image:
