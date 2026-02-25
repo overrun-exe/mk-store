@@ -1,7 +1,7 @@
 import axios, { type RawAxiosRequestHeaders } from 'axios';
 import { parse } from 'cookie';
 
-axios.defaults.baseURL = process.env.VUE_APP_API_URL;
+axios.defaults.baseURL = process.env.VUE_APP_API_URL || '/api';
 class ApiService {
 
   static csrf_token: string;

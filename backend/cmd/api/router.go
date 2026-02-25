@@ -27,22 +27,29 @@ func newRouter(app *app.Instance) (http.Handler, error) {
 	)
 
 	r.Group(func(r chi.Router) {
-		r.Use(
-			app.TimingsMiddleware,
-			app.RequestsMiddleware,
-		)
+		registerAPIRoutes(r, app)
+	})
 
-		r.Get("/products", app.ListDumplingsController)
-		r.Get("/categories", app.ListCategoriesController)
-		r.Post("/orders", app.CreateOrderController)
-
-		r.Get("/auth/whoami", app.WhoAmIController)
+	r.Route("/api", func(r chi.Router) {
+		registerAPIRoutes(r, app)
 	})
 
 	r.Get("/health", app.HealthcheckController)
 	r.Method(http.MethodGet, "/metrics", app.MetricsHandler())
 
 	return r, nil
+}
+
+func registerAPIRoutes(r chi.Router, app *app.Instance) {
+	r.Use(
+		app.TimingsMiddleware,
+		app.RequestsMiddleware,
+	)
+
+	r.Get("/products", app.ListDumplingsController)
+	r.Get("/categories", app.ListCategoriesController)
+	r.Post("/orders", app.CreateOrderController)
+	r.Get("/auth/whoami", app.WhoAmIController)
 }
 
 func logMiddleware(next http.Handler) http.Handler {

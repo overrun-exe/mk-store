@@ -1,0 +1,27 @@
+namespace: mk-store
+
+imagePullSecrets:
+  - name: nexus-registry
+
+backend:
+  image:
+    repository: replace-with-backend-image-repository
+    tag: latest
+
+frontend:
+  image:
+    repository: replace-with-frontend-image-repository
+    tag: latest
+
+ingress:
+  enabled: true
+  className: nginx
+  host: mk-store.example.com
+  tls:
+    enabled: true
+    secretName: mk-store-tls
+
+metrics:
+  serviceMonitor:
+    enabled: true
+    namespace: monitoring

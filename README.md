@@ -1,17 +1,243 @@
-# Momo Store aka Пельменная №2
+# mk-store CI/CD diploma project
 
-<img width="900" alt="image" src="https://user-images.githubusercontent.com/9394918/167876466-2c530828-d658-4efe-9064-825626cc6db5.png">
+Full CI/CD cycle for mk-store in Yandex Cloud:
+- source code in GitLab
+- build artifacts and images in Nexus
+- quality gate in SonarQube
+- infrastructure in Terraform (IaC)
+- deployment to Kubernetes using Helm
 
-## Frontend
+## Services
 
-```bash
-npm install
-NODE_ENV=production VUE_APP_API_URL=http://localhost:8081 npm run serve
+- GitLab: https://gitlab.praktikum-services.ru/std-036-33/mk-store
+- Nexus: https://nexus.praktikum-services.tech/
+- SonarQube: https://sonarqube.praktikum-services.ru/
+
+## Repository structure
+
+```text
+.
+├── .gitlab-ci.yml
+├── backend/
+│   ├── Dockerfile
+│   └── ... Go API
+├── frontend/
+│   ├── Dockerfile
+│   ├── nginx.conf
+│   └── ... Vue app
+├── helm/
+│   └── mk-store/                 # Helm chart for app deployment
+├── k8s/
+│   └── base/                     # Raw Kubernetes manifests
+├── infra/
+│   └── terraform/                # Yandex Cloud IaC + S3 state setup
+├── docs/
+│   └── presentation-plan.md
+└── sonar-project.properties
 ```
 
-## Backend
+## Git flow
+
+`main` is production-ready.
+
+Branch model:
+- `feature/*` for implementation
+- merge request into `main`
+- release by tag `vMAJOR.MINOR.PATCH`
+
+## Local development
+
+### Backend
 
 ```bash
+cd backend
+go test ./...
 go run ./cmd/api
-go test -v ./... 
 ```
+
+### Frontend
+
+```bash
+cd frontend
+npm ci
+VUE_APP_API_URL=http://localhost:8081 VUE_APP_PUBLIC_PATH=/ npm run serve
+```
+
+## Docker images
+
+- Backend image builds a static Go binary and runs it in Alpine.
+- Frontend image builds Vue static files and serves them with Nginx.
+
+Local build examples:
+
+```bash
+docker build -f backend/Dockerfile -t mk-store/backend:local backend
+docker build -f frontend/Dockerfile -t mk-store/frontend:local frontend
+```
+
+## CI pipeline
+
+Pipeline is defined in `.gitlab-ci.yml` and contains stages:
+- `test`: Go tests, frontend build check, SonarQube scan
+- `build`: build backend binary
+- `publish`: publish binary, Docker images, Helm chart, static assets
+- `deploy`: terraform plan/apply and Helm deploy to Kubernetes
+
+### Required GitLab CI/CD variables
+
+Nexus:
+- `NEXUS_USER`
+- `NEXUS_PASSWORD`
+- `NEXUS_DOCKER_REGISTRY`
+- `NEXUS_DOCKER_BACKEND_REPOSITORY`
+- `NEXUS_DOCKER_FRONTEND_REPOSITORY`
+- `NEXUS_HELM_REPOSITORY` (optional override)
+- `NEXUS_RAW_REPOSITORY` (optional override)
+
+SonarQube:
+- `SONAR_HOST_URL`
+- `SONAR_TOKEN`
+
+Kubernetes deployment:
+- `KUBE_CONFIG_B64` (base64 kubeconfig)
+- `APP_HOST` (for ingress host)
+- `TLS_SECRET_NAME` (TLS secret)
+- `APP_JWT_SECRET` (optional app secret)
+- `ENABLE_SERVICE_MONITOR` (`true`/`false`)
+
+Terraform / Object Storage:
+- `TF_BACKEND_CONFIG` (content of `infra/terraform/backend.hcl`)
+- `S3_ENDPOINT` (for Yandex Object Storage, usually `https://storage.yandexcloud.net`)
+- `ASSETS_BUCKET`
+- `AWS_ACCESS_KEY_ID`
+- `AWS_SECRET_ACCESS_KEY`
+
+## Infrastructure deployment (Terraform)
+
+Terraform code is in `infra/terraform`.
+
+### 1. Bootstrap state bucket (first run only)
+
+On a clean environment the remote state bucket does not exist yet. Do a one-time bootstrap with local state:
+
+```bash
+cd infra/terraform
+cp terraform.tfvars.example terraform.tfvars
+terraform init -backend=false
+terraform apply -target=yandex_storage_bucket.tfstate
+```
+
+After bucket creation, switch to S3 backend.
+
+### 2. Prepare backend config
+
+```bash
+cp backend.hcl.example backend.hcl
+```
+
+Fill real values in both files.
+
+### 3. Initialize, validate, apply with remote state
+
+```bash
+terraform init -backend-config=backend.hcl
+terraform fmt
+terraform validate
+terraform plan
+terraform apply
+```
+
+### 4. Get kubeconfig
+
+```bash
+yc managed-kubernetes cluster get-credentials --id $(terraform output -raw cluster_id) --external --force
+```
+
+## Application deployment
+
+### Option A: via Helm in CI (recommended)
+
+Run manual GitLab job `deploy-production` on `main` or tag.
+
+### Option B: manually from local machine
+
+```bash
+helm upgrade --install mk-store ./helm/mk-store \
+  --namespace mk-store \
+  --create-namespace \
+  --set backend.image.repository=<backend-image-repo> \
+  --set backend.image.tag=<tag> \
+  --set frontend.image.repository=<frontend-image-repo> \
+  --set frontend.image.tag=<tag> \
+  --set ingress.host=<your-domain>
+```
+
+## Kubernetes manifests and Helm
+
+- Raw manifests: `k8s/base`
+- Helm chart: `helm/mk-store`
+- production values example: `helm/mk-store/values.prod.yaml`
+
+Helm chart is packaged and versioned in CI, then published to Nexus.
+
+## Artifact versioning rules
+
+- Docker image tags:
+  - release tag: `vX.Y.Z` (same value)
+  - branch build: `CI_COMMIT_SHORT_SHA`
+- Backend binary in Nexus raw:
+  - `vX.Y.Z` for releases
+  - `0.1.<pipeline_iid>` for non-tag builds
+- Helm chart:
+  - release tag: semantic version from git tag
+  - branch build: `0.1.<pipeline_iid>`
+
+## Static files in S3
+
+Static file upload job: `upload-static-assets`.
+
+Example uploaded file:
+- `frontend/src/assets/logo.png` -> `s3://$ASSETS_BUCKET/logo.png`
+
+## Secrets handling
+
+No production secrets are stored in git.
+
+- sensitive values are provided via GitLab protected variables
+- runtime Kubernetes secrets are created during deploy job
+- `k8s/base/secrets.example.yaml` contains placeholders only
+
+## Monitoring and logging
+
+- Backend exposes Prometheus metrics on `/metrics`
+- `ServiceMonitor` templates are included in Helm and raw manifests
+- app logs go to `stdout`; can be collected by your cluster log stack (for example, Loki + Promtail)
+- recommended dashboard: Grafana (request rate, p95 latency, 5xx ratio, pod health)
+- dashboard assets are in `k8s/observability`
+
+## Rules for infrastructure changes
+
+- all infra changes go through merge requests
+- no manual drift in cloud console for managed resources
+- required checks before merge:
+  - `terraform fmt`
+  - `terraform validate`
+  - `terraform plan` review
+- every infra change must update docs when behavior changes
+
+## Release cycle
+
+1. Develop in `feature/*`
+2. Merge request to `main`
+3. CI runs tests and build
+4. Create release tag `vX.Y.Z`
+5. CI publishes immutable artifacts to Nexus
+6. Run `deploy-production` for rollout
+
+## Presentation plan
+
+See `docs/presentation-plan.md`.
+
+## Submission note
+
+If you have extra repositories (infra-only, observability, etc.), include links here in this README so one GitLab URL is enough for review.

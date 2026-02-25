@@ -1,0 +1,39 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mk-store-frontend
+  namespace: mk-store
+  labels:
+    app: mk-store-frontend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: mk-store-frontend
+  template:
+    metadata:
+      labels:
+        app: mk-store-frontend
+    spec:
+      containers:
+        - name: frontend
+          image: registry.example.com/mk-store/frontend:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 80
+              name: http
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 300m
+              memory: 256Mi

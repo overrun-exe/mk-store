@@ -1,0 +1,268 @@
+stages:
+  - test
+  - build
+  - publish
+  - deploy
+
+workflow:
+  rules:
+    - if: '$CI_COMMIT_BRANCH'
+    - if: '$CI_COMMIT_TAG'
+
+variables:
+  APP_NAME: mk-store
+  K8S_NAMESPACE: mk-store
+  APP_HOST: mk-store.example.com
+  TLS_SECRET_NAME: mk-store-tls
+  FRONTEND_API_URL: /api
+  FRONTEND_PUBLIC_PATH: /
+  NEXUS_URL: https://nexus.praktikum-services.tech
+  NEXUS_RAW_REPOSITORY: raw-hosted
+  NEXUS_HELM_REPOSITORY: helm-hosted
+  TF_ROOT: infra/terraform
+  TF_IN_AUTOMATION: "true"
+  TF_INPUT: "false"
+  BACKEND_IMAGE_REPOSITORY: $NEXUS_DOCKER_BACKEND_REPOSITORY
+  FRONTEND_IMAGE_REPOSITORY: $NEXUS_DOCKER_FRONTEND_REPOSITORY
+
+.compute-version:
+  before_script:
+    - export IMAGE_TAG="${CI_COMMIT_TAG:-$CI_COMMIT_SHORT_SHA}"
+    - export RELEASE_VERSION="${CI_COMMIT_TAG:-0.1.${CI_PIPELINE_IID}}"
+
+go-test:
+  stage: test
+  image: golang:1.23
+  script:
+    - cd backend
+    - go test -coverprofile=coverage.out ./...
+  artifacts:
+    paths:
+      - backend/coverage.out
+    expire_in: 1 week
+
+frontend-build-test:
+  stage: test
+  image: node:20-alpine
+  script:
+    - cd frontend
+    - npm ci
+    - npm run build
+
+sonarqube-scan:
+  stage: test
+  image: sonarsource/sonar-scanner-cli:latest
+  needs:
+    - go-test
+    - frontend-build-test
+  rules:
+    - if: '$SONAR_HOST_URL && $SONAR_TOKEN'
+    - when: never
+  script:
+    - sonar-scanner -Dsonar.host.url="$SONAR_HOST_URL" -Dsonar.token="$SONAR_TOKEN"
+
+build-backend-binary:
+  stage: build
+  image: golang:1.23
+  extends: .compute-version
+  script:
+    - cd backend
+    - mkdir -p bin
+    - CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags='-s -w' -o bin/mk-store-api ./cmd/api
+  artifacts:
+    paths:
+      - backend/bin/mk-store-api
+    expire_in: 1 week
+
+publish-backend-binary:
+  stage: publish
+  image: curlimages/curl:8.11.1
+  extends: .compute-version
+  needs:
+    - build-backend-binary
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+    - if: '$CI_COMMIT_TAG'
+  script:
+    - |
+      curl --fail --show-error --silent \
+        -u "${NEXUS_USER}:${NEXUS_PASSWORD}" \
+        --upload-file backend/bin/mk-store-api \
+        "${NEXUS_URL}/repository/${NEXUS_RAW_REPOSITORY}/${APP_NAME}/backend/${RELEASE_VERSION}/mk-store-api"
+
+publish-backend-image:
+  stage: publish
+  image:
+    name: gcr.io/kaniko-project/executor:v1.23.2-debug
+    entrypoint: [""]
+  extends: .compute-version
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+    - if: '$CI_COMMIT_TAG'
+  script:
+    - mkdir -p /kaniko/.docker
+    - printf '{"auths":{"%s":{"username":"%s","password":"%s"}}}' "$NEXUS_DOCKER_REGISTRY" "$NEXUS_USER" "$NEXUS_PASSWORD" > /kaniko/.docker/config.json
+    - |
+      EXTRA_DEST=""
+      if [ "$CI_COMMIT_BRANCH" = "$CI_DEFAULT_BRANCH" ]; then
+        EXTRA_DEST="--destination ${BACKEND_IMAGE_REPOSITORY}:latest"
+      fi
+
+      /kaniko/executor \
+        --context "${CI_PROJECT_DIR}/backend" \
+        --dockerfile "${CI_PROJECT_DIR}/backend/Dockerfile" \
+        --destination "${BACKEND_IMAGE_REPOSITORY}:${IMAGE_TAG}" \
+        ${EXTRA_DEST}
+
+publish-frontend-image:
+  stage: publish
+  image:
+    name: gcr.io/kaniko-project/executor:v1.23.2-debug
+    entrypoint: [""]
+  extends: .compute-version
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+    - if: '$CI_COMMIT_TAG'
+  script:
+    - mkdir -p /kaniko/.docker
+    - printf '{"auths":{"%s":{"username":"%s","password":"%s"}}}' "$NEXUS_DOCKER_REGISTRY" "$NEXUS_USER" "$NEXUS_PASSWORD" > /kaniko/.docker/config.json
+    - |
+      EXTRA_DEST=""
+      if [ "$CI_COMMIT_BRANCH" = "$CI_DEFAULT_BRANCH" ]; then
+        EXTRA_DEST="--destination ${FRONTEND_IMAGE_REPOSITORY}:latest"
+      fi
+
+      /kaniko/executor \
+        --context "${CI_PROJECT_DIR}/frontend" \
+        --dockerfile "${CI_PROJECT_DIR}/frontend/Dockerfile" \
+        --build-arg "VUE_APP_API_URL=${FRONTEND_API_URL}" \
+        --build-arg "VUE_APP_PUBLIC_PATH=${FRONTEND_PUBLIC_PATH}" \
+        --destination "${FRONTEND_IMAGE_REPOSITORY}:${IMAGE_TAG}" \
+        ${EXTRA_DEST}
+
+publish-helm-chart:
+  stage: publish
+  image: alpine/helm:3.16.4
+  extends: .compute-version
+  needs:
+    - publish-backend-image
+    - publish-frontend-image
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+    - if: '$CI_COMMIT_TAG'
+  script:
+    - apk add --no-cache curl
+    - |
+      if [ -n "${CI_COMMIT_TAG}" ] && echo "${CI_COMMIT_TAG}" | grep -Eq '^v?[0-9]+\.[0-9]+\.[0-9]+$'; then
+        CHART_VERSION="${CI_COMMIT_TAG#v}"
+      else
+        CHART_VERSION="0.1.${CI_PIPELINE_IID}"
+      fi
+      echo "CHART_VERSION=${CHART_VERSION}" > chart.env
+    - helm lint helm/mk-store
+    - . chart.env
+    - helm package helm/mk-store --version "${CHART_VERSION}" --app-version "${IMAGE_TAG}" --destination dist
+    - |
+      curl --fail --show-error --silent \
+        -u "${NEXUS_USER}:${NEXUS_PASSWORD}" \
+        --upload-file "dist/mk-store-${CHART_VERSION}.tgz" \
+        "${NEXUS_URL}/repository/${NEXUS_HELM_REPOSITORY}/mk-store-${CHART_VERSION}.tgz"
+  artifacts:
+    reports:
+      dotenv: chart.env
+    paths:
+      - dist/*.tgz
+    expire_in: 1 week
+
+upload-static-assets:
+  stage: publish
+  image: amazon/aws-cli:2.22.26
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+    - if: '$CI_COMMIT_TAG'
+  script:
+    - aws --endpoint-url "$S3_ENDPOINT" s3 cp frontend/src/assets/logo.png "s3://${ASSETS_BUCKET}/logo.png"
+
+terraform-plan:
+  stage: deploy
+  image: hashicorp/terraform:1.9.8
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+      when: manual
+    - if: '$CI_COMMIT_TAG'
+      when: manual
+  script:
+    - cd "$TF_ROOT"
+    - printf '%s' "$TF_BACKEND_CONFIG" > backend.hcl
+    - terraform init -backend-config=backend.hcl
+    - terraform fmt -check
+    - terraform validate
+    - terraform plan -out tfplan
+  artifacts:
+    paths:
+      - infra/terraform/tfplan
+    expire_in: 1 week
+
+terraform-apply:
+  stage: deploy
+  image: hashicorp/terraform:1.9.8
+  needs:
+    - terraform-plan
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+      when: manual
+    - if: '$CI_COMMIT_TAG'
+      when: manual
+  script:
+    - cd "$TF_ROOT"
+    - printf '%s' "$TF_BACKEND_CONFIG" > backend.hcl
+    - terraform init -backend-config=backend.hcl
+    - terraform apply -auto-approve tfplan
+
+deploy-production:
+  stage: deploy
+  image: dtzar/helm-kubectl:3.16.4
+  extends: .compute-version
+  needs:
+    - publish-backend-image
+    - publish-frontend-image
+    - publish-helm-chart
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+      when: manual
+    - if: '$CI_COMMIT_TAG'
+      when: manual
+  environment:
+    name: production
+    url: https://$APP_HOST
+  script:
+    - mkdir -p ~/.kube
+    - echo "$KUBE_CONFIG_B64" | base64 -d > ~/.kube/config
+    - kubectl create namespace "$K8S_NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -
+    - |
+      kubectl -n "$K8S_NAMESPACE" create secret docker-registry nexus-registry \
+        --docker-server="$NEXUS_DOCKER_REGISTRY" \
+        --docker-username="$NEXUS_USER" \
+        --docker-password="$NEXUS_PASSWORD" \
+        --dry-run=client -o yaml | kubectl apply -f -
+    - |
+      if [ -n "$APP_JWT_SECRET" ]; then
+        kubectl -n "$K8S_NAMESPACE" create secret generic mk-store-secrets \
+          --from-literal=jwtSecret="$APP_JWT_SECRET" \
+          --dry-run=client -o yaml | kubectl apply -f -
+      fi
+    - |
+      SERVICE_MONITOR="${ENABLE_SERVICE_MONITOR:-false}"
+      helm upgrade --install mk-store ./helm/mk-store \
+        --namespace "$K8S_NAMESPACE" \
+        --create-namespace \
+        --set namespace="$K8S_NAMESPACE" \
+        --set imagePullSecrets[0].name=nexus-registry \
+        --set backend.image.repository="$BACKEND_IMAGE_REPOSITORY" \
+        --set backend.image.tag="$IMAGE_TAG" \
+        --set frontend.image.repository="$FRONTEND_IMAGE_REPOSITORY" \
+        --set frontend.image.tag="$IMAGE_TAG" \
+        --set ingress.host="$APP_HOST" \
+        --set ingress.tls.secretName="$TLS_SECRET_NAME" \
+        --set metrics.serviceMonitor.enabled="$SERVICE_MONITOR" \
+        --wait --timeout 10m

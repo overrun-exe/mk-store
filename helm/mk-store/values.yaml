@@ -1,0 +1,60 @@
+nameOverride: ""
+fullnameOverride: ""
+
+namespace: mk-store
+
+imagePullSecrets: []
+
+backend:
+  replicaCount: 2
+  image:
+    repository: registry.example.com/mk-store/backend
+    tag: latest
+    pullPolicy: IfNotPresent
+  service:
+    port: 8081
+  env: {}
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+
+frontend:
+  replicaCount: 2
+  image:
+    repository: registry.example.com/mk-store/frontend
+    tag: latest
+    pullPolicy: IfNotPresent
+  service:
+    port: 80
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 300m
+      memory: 256Mi
+
+secrets:
+  create: false
+  name: mk-store-secrets
+  data:
+    jwtSecret: ""
+
+ingress:
+  enabled: true
+  className: nginx
+  host: mk-store.example.com
+  annotations: {}
+  tls:
+    enabled: true
+    secretName: mk-store-tls
+
+metrics:
+  serviceMonitor:
+    enabled: false
+    namespace: monitoring
+    interval: 30s

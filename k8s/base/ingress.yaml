@@ -1,0 +1,29 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: mk-store
+  namespace: mk-store
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - mk-store.example.com
+      secretName: mk-store-tls
+  rules:
+    - host: mk-store.example.com
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: mk-store-backend
+                port:
+                  number: 8081
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: mk-store-frontend
+                port:
+                  number: 80
