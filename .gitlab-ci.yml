@@ -356,6 +356,12 @@ deploy-production:
     - |
       SERVICE_MONITOR="${ENABLE_SERVICE_MONITOR:-false}"
       IP_ACCESS="${ENABLE_IP_ACCESS:-true}"
+
+      if [ "$SERVICE_MONITOR" = "true" ] && ! kubectl get crd servicemonitors.monitoring.coreos.com >/dev/null 2>&1; then
+        echo "ServiceMonitor CRD not found. Disabling metrics.serviceMonitor for this deploy. Run deploy-observability first." >&2
+        SERVICE_MONITOR="false"
+      fi
+
       helm upgrade --install mk-store ./helm/mk-store \
         --namespace "$K8S_NAMESPACE" \
         --create-namespace \

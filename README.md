@@ -168,6 +168,8 @@ Run manual GitLab job `deploy-production` on `main` or tag.
 If `ENABLE_IP_ACCESS=true`, app is also reachable by external ingress IP over HTTP.
 
 To deploy observability stack, run manual GitLab job `deploy-observability`.
+If `ENABLE_SERVICE_MONITOR=true` but ServiceMonitor CRD is missing, deploy job
+automatically disables ServiceMonitor for this rollout and prints a warning.
 
 ### Option B: manually from local machine
 
