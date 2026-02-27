@@ -15,6 +15,7 @@ variables:
   APP_HOST: mk-store.example.com
   TLS_SECRET_NAME: mk-store-tls
   ENABLE_IP_ACCESS: "true"
+  ENABLE_SERVICE_MONITOR: "true"
   FRONTEND_API_URL: /api
   FRONTEND_PUBLIC_PATH: /
   TF_ROOT: infra/terraform
@@ -359,3 +360,53 @@ deploy-production:
         --set ingress.ipAccess.enabled="$IP_ACCESS" \
         --set metrics.serviceMonitor.enabled="$SERVICE_MONITOR" \
         --wait --timeout 10m
+
+deploy-observability:
+  stage: deploy
+  image: dtzar/helm-kubectl:3.16.4
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+      when: manual
+    - if: '$CI_COMMIT_TAG'
+      when: manual
+  environment:
+    name: monitoring
+  script:
+    - mkdir -p ~/.kube
+    - |
+      if [ -n "$KUBE_URL" ] && [ -n "$KUBE_TOKEN" ]; then
+        kubectl config set-cluster mk-store --server="$KUBE_URL" --insecure-skip-tls-verify=true
+        kubectl config set-credentials deployer --token="$KUBE_TOKEN"
+        kubectl config set-context mk-store --cluster=mk-store --user=deployer --namespace="$K8S_NAMESPACE"
+        kubectl config use-context mk-store
+      elif [ -n "$KUBE_CONFIG_B64" ]; then
+        echo "$KUBE_CONFIG_B64" | base64 -d > ~/.kube/config
+        sed -i -E 's#command: .*/yc#command: yc#g' ~/.kube/config || true
+
+        if grep -Eq 'command: .*yc' ~/.kube/config; then
+          echo "KUBE_CONFIG_B64 contains yc exec-auth plugin. In CI, use KUBE_URL and KUBE_TOKEN variables instead." >&2
+          exit 1
+        fi
+      else
+        echo "Set either KUBE_URL + KUBE_TOKEN or KUBE_CONFIG_B64 in GitLab CI/CD Variables." >&2
+        exit 1
+      fi
+    - kubectl create namespace monitoring --dry-run=client -o yaml | kubectl apply -f -
+    - helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+    - helm repo add grafana https://grafana.github.io/helm-charts
+    - helm repo update
+    - |
+      GRAFANA_PASSWORD="${GRAFANA_ADMIN_PASSWORD:-admin-change-me}"
+      helm upgrade --install kube-prometheus-stack prometheus-community/kube-prometheus-stack \
+        --namespace monitoring \
+        -f k8s/observability/kube-prometheus-stack-values.yaml \
+        --set grafana.adminPassword="$GRAFANA_PASSWORD" \
+        --wait --timeout 15m
+    - |
+      helm upgrade --install loki grafana/loki-stack \
+        --namespace monitoring \
+        -f k8s/observability/loki-stack-values.yaml \
+        --wait --timeout 10m
+    - kubectl apply -f k8s/observability/grafana-datasources-configmap.yaml
+    - kubectl apply -f k8s/observability/grafana-dashboard-configmap.yaml
+    - kubectl apply -f k8s/observability/grafana-logs-dashboard-configmap.yaml

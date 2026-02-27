@@ -1,0 +1,12 @@
+grafana:
+  enabled: false
+
+prometheus:
+  enabled: false
+
+promtail:
+  enabled: true
+
+loki:
+  enabled: true
+  isDefault: false

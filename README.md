@@ -81,7 +81,7 @@ Pipeline is defined in `.gitlab-ci.yml` and contains stages:
 - `test`: Go tests, frontend build check, SonarQube scan
 - `build`: build backend binary
 - `publish`: publish binary, Docker images, Helm chart, static assets
-- `deploy`: terraform plan/apply and Helm deploy to Kubernetes
+- `deploy`: terraform plan/apply, app deploy, observability deploy
 
 ### Required GitLab CI/CD variables
 
@@ -96,6 +96,7 @@ GitLab Registry / deploy:
 - `REGISTRY_PULL_PASSWORD` (GitLab Deploy Token password/token, recommended)
 - `APP_JWT_SECRET` (optional app secret)
 - `ENABLE_SERVICE_MONITOR` (`true`/`false`)
+- `GRAFANA_ADMIN_PASSWORD` (optional, used by `deploy-observability`; default fallback is `admin-change-me`)
 
 SonarQube:
 - `SONAR_HOST_URL`
@@ -165,6 +166,8 @@ yc managed-kubernetes cluster get-credentials --id $(terraform output -raw clust
 Run manual GitLab job `deploy-production` on `main` or tag.
 If `ENABLE_IP_ACCESS=true`, app is also reachable by external ingress IP over HTTP.
 
+To deploy observability stack, run manual GitLab job `deploy-observability`.
+
 ### Option B: manually from local machine
 
 ```bash
@@ -217,9 +220,12 @@ No production secrets are stored in git.
 
 - Backend exposes Prometheus metrics on `/metrics`
 - `ServiceMonitor` templates are included in Helm and raw manifests
-- app logs go to `stdout`; can be collected by your cluster log stack (for example, Loki + Promtail)
-- recommended dashboard: Grafana (request rate, p95 latency, 5xx ratio, pod health)
-- dashboard assets are in `k8s/observability`
+- app logs are collected from `stdout` by Promtail and stored in Loki
+- Grafana dashboards and datasources are provisioned from `k8s/observability`
+- CI job `deploy-observability` installs:
+  - `kube-prometheus-stack` (Prometheus + Grafana)
+  - `loki-stack` (Loki + Promtail)
+  - datasource configmap and two dashboards (metrics + logs)
 
 ## Rules for infrastructure changes
 
