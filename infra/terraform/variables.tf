@@ -85,14 +85,15 @@ variable "ssh_public_key" {
   type        = string
 }
 
-variable "tfstate_bucket_name" {
-  description = "Bucket name for terraform state"
-  type        = string
-}
-
 variable "assets_bucket_name" {
   description = "Bucket name for static assets"
   type        = string
+}
+
+variable "create_assets_bucket" {
+  description = "Create assets bucket via terraform. Keep false if bucket already exists."
+  type        = bool
+  default     = false
 }
 
 variable "storage_access_key" {

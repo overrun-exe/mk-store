@@ -112,8 +112,8 @@ Terraform provider vars (recommended in CI as protected/masked):
 - `TF_VAR_cloud_id`
 - `TF_VAR_folder_id`
 - `TF_VAR_ssh_public_key`
-- `TF_VAR_tfstate_bucket_name`
 - `TF_VAR_assets_bucket_name`
+- `TF_VAR_create_assets_bucket` (`false` by default; set `true` only if terraform should create assets bucket)
 - `TF_VAR_storage_access_key`
 - `TF_VAR_storage_secret_key`
 
@@ -123,13 +123,11 @@ Terraform code is in `infra/terraform`.
 
 ### 1. Bootstrap state bucket (first run only)
 
-On a clean environment the remote state bucket does not exist yet. Do a one-time bootstrap with local state:
+On a clean environment create the state bucket manually once:
 
 ```bash
 cd infra/terraform
-cp terraform.tfvars.example terraform.tfvars
-terraform init -backend=false
-terraform apply -target=yandex_storage_bucket.tfstate
+yc storage bucket create --name <tfstate-bucket-name>
 ```
 
 After bucket creation, switch to S3 backend.

@@ -1,23 +1,6 @@
-resource "yandex_storage_bucket" "tfstate" {
-  bucket = var.tfstate_bucket_name
-  acl    = "private"
-
-  force_destroy = false
-
-  anonymous_access_flags {
-    read        = false
-    list        = false
-    config_read = false
-  }
-
-  versioning {
-    enabled = true
-  }
-}
-
 resource "yandex_storage_bucket" "assets" {
+  count  = var.create_assets_bucket ? 1 : 0
   bucket = var.assets_bucket_name
-  acl    = "private"
 
   force_destroy = false
 
