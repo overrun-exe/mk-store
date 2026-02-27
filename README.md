@@ -101,7 +101,7 @@ SonarQube:
 - `SONAR_TOKEN`
 
 Terraform / Object Storage:
-- `TF_BACKEND_CONFIG` (content of `infra/terraform/backend.hcl`)
+- `TF_BACKEND_CONFIG` (content of `infra/terraform/backend.hcl`; use GitLab `File` variable or multiline text)
 - `S3_ENDPOINT` (for Yandex Object Storage, usually `https://storage.yandexcloud.net`)
 - `ASSETS_BUCKET`
 - `AWS_ACCESS_KEY_ID` (optional if `TF_VAR_storage_access_key` is set)

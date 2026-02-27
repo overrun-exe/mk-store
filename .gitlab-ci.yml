@@ -194,7 +194,23 @@ terraform-plan:
       when: manual
   script:
     - cd "$TF_ROOT"
-    - printf '%s' "$TF_BACKEND_CONFIG" > backend.hcl
+    - |
+      if [ -z "$TF_BACKEND_CONFIG" ]; then
+        echo "TF_BACKEND_CONFIG is empty. Set it in GitLab CI/CD Variables (File or multiline Variable)." >&2
+        exit 1
+      fi
+
+      if [ -f "$TF_BACKEND_CONFIG" ]; then
+        cp "$TF_BACKEND_CONFIG" backend.hcl
+      elif echo "$TF_BACKEND_CONFIG" | grep -q '\\n'; then
+        printf '%b\n' "$TF_BACKEND_CONFIG" > backend.hcl
+      else
+        printf '%s\n' "$TF_BACKEND_CONFIG" > backend.hcl
+      fi
+
+      grep -Eq '^[[:space:]]*bucket[[:space:]]*=' backend.hcl || (echo "backend.hcl: missing bucket" >&2 && exit 1)
+      grep -Eq '^[[:space:]]*key[[:space:]]*=' backend.hcl || (echo "backend.hcl: missing key" >&2 && exit 1)
+      grep -Eq '^[[:space:]]*region[[:space:]]*=' backend.hcl || (echo "backend.hcl: missing region" >&2 && exit 1)
     - terraform init -backend-config=backend.hcl
     - terraform fmt -check
     - terraform validate
@@ -216,7 +232,23 @@ terraform-apply:
       when: manual
   script:
     - cd "$TF_ROOT"
-    - printf '%s' "$TF_BACKEND_CONFIG" > backend.hcl
+    - |
+      if [ -z "$TF_BACKEND_CONFIG" ]; then
+        echo "TF_BACKEND_CONFIG is empty. Set it in GitLab CI/CD Variables (File or multiline Variable)." >&2
+        exit 1
+      fi
+
+      if [ -f "$TF_BACKEND_CONFIG" ]; then
+        cp "$TF_BACKEND_CONFIG" backend.hcl
+      elif echo "$TF_BACKEND_CONFIG" | grep -q '\\n'; then
+        printf '%b\n' "$TF_BACKEND_CONFIG" > backend.hcl
+      else
+        printf '%s\n' "$TF_BACKEND_CONFIG" > backend.hcl
+      fi
+
+      grep -Eq '^[[:space:]]*bucket[[:space:]]*=' backend.hcl || (echo "backend.hcl: missing bucket" >&2 && exit 1)
+      grep -Eq '^[[:space:]]*key[[:space:]]*=' backend.hcl || (echo "backend.hcl: missing key" >&2 && exit 1)
+      grep -Eq '^[[:space:]]*region[[:space:]]*=' backend.hcl || (echo "backend.hcl: missing region" >&2 && exit 1)
     - terraform init -backend-config=backend.hcl
     - terraform apply -auto-approve tfplan
 
