@@ -1,7 +1,9 @@
 bucket                      = "replace-with-tfstate-bucket"
 key                         = "mk-store/terraform.tfstate"
 region                      = "ru-central1"
-endpoint                    = "storage.yandexcloud.net"
+endpoints = {
+  s3 = "https://storage.yandexcloud.net"
+}
 access_key                  = "replace-with-access-key"
 secret_key                  = "replace-with-secret-key"
 skip_region_validation      = true

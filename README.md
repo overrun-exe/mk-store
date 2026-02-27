@@ -141,6 +141,7 @@ cp backend.hcl.example backend.hcl
 ```
 
 Fill real values in both files.
+Do not keep placeholders (for example `replace-with-tfstate-bucket`), and keep S3 endpoint as `https://storage.yandexcloud.net`.
 
 ### 3. Initialize, validate, apply with remote state
 

@@ -23,6 +23,8 @@ cp backend.hcl.example backend.hcl
 ```
 
 3. Fill bucket name and static keys.
+   - use a real bucket name instead of `replace-with-tfstate-bucket`
+   - keep endpoint as full URL (`https://storage.yandexcloud.net`)
 
 4. Initialize terraform with S3 backend:
 
