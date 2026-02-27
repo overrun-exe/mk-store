@@ -5,7 +5,7 @@ resource "yandex_storage_bucket" "assets" {
   force_destroy = false
 
   anonymous_access_flags {
-    read        = false
+    read        = true
     list        = false
     config_read = false
   }

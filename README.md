@@ -106,6 +106,7 @@ Terraform / Object Storage:
 - `TF_BACKEND_CONFIG` (content of `infra/terraform/backend.hcl`; use GitLab `File` variable or multiline text)
 - `S3_ENDPOINT` (for Yandex Object Storage, usually `https://storage.yandexcloud.net`)
 - `ASSETS_BUCKET`
+- `FRONTEND_ASSETS_BASE_URL` (optional; if empty, CI derives it as `$S3_ENDPOINT/$ASSETS_BUCKET/assets`)
 - `AWS_ACCESS_KEY_ID` (optional if `TF_VAR_storage_access_key` is set)
 - `AWS_SECRET_ACCESS_KEY` (optional if `TF_VAR_storage_secret_key` is set)
 
@@ -205,8 +206,14 @@ Helm chart is packaged and versioned in CI, then uploaded to GitLab Package Regi
 
 Static file upload job: `upload-static-assets`.
 
-Example uploaded file:
-- `frontend/src/assets/logo.png` -> `s3://$ASSETS_BUCKET/logo.png`
+Uploaded files:
+- `frontend/src/assets/*` -> `s3://$ASSETS_BUCKET/assets/`
+- `frontend/public/favicon.ico` -> `s3://$ASSETS_BUCKET/favicon.ico`
+
+Frontend build uses `VUE_APP_ASSETS_BASE_URL` and reads logo from S3
+(`$VUE_APP_ASSETS_BASE_URL/logo.png`). If it is not set, CI computes it from
+`S3_ENDPOINT` and `ASSETS_BUCKET`.
+CI upload sets `public-read` ACL for these objects so browser can fetch them.
 
 ## Secrets handling
 

@@ -18,6 +18,7 @@ variables:
   ENABLE_SERVICE_MONITOR: "true"
   FRONTEND_API_URL: /api
   FRONTEND_PUBLIC_PATH: /
+  FRONTEND_ASSETS_BASE_URL: ""
   TF_ROOT: infra/terraform
   TF_IN_AUTOMATION: "true"
   TF_INPUT: "false"
@@ -131,11 +132,17 @@ publish-frontend-image:
         EXTRA_DEST="--destination ${FRONTEND_IMAGE_REPOSITORY}:latest"
       fi
 
+      ASSETS_BASE_URL="${FRONTEND_ASSETS_BASE_URL:-}"
+      if [ -z "$ASSETS_BASE_URL" ] && [ -n "$S3_ENDPOINT" ] && [ -n "$ASSETS_BUCKET" ]; then
+        ASSETS_BASE_URL="${S3_ENDPOINT%/}/${ASSETS_BUCKET}/assets"
+      fi
+
       /kaniko/executor \
         --context "${CI_PROJECT_DIR}/frontend" \
         --dockerfile "${CI_PROJECT_DIR}/frontend/Dockerfile" \
         --build-arg "VUE_APP_API_URL=${FRONTEND_API_URL}" \
         --build-arg "VUE_APP_PUBLIC_PATH=${FRONTEND_PUBLIC_PATH}" \
+        --build-arg "VUE_APP_ASSETS_BASE_URL=${ASSETS_BASE_URL}" \
         --destination "${FRONTEND_IMAGE_REPOSITORY}:${IMAGE_TAG}" \
         ${EXTRA_DEST}
 
@@ -184,7 +191,10 @@ upload-static-assets:
     - export AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY:-$TF_VAR_storage_secret_key}"
     - test -n "$AWS_ACCESS_KEY_ID" || (echo "AWS_ACCESS_KEY_ID is empty (set AWS_ACCESS_KEY_ID or TF_VAR_storage_access_key)" && exit 1)
     - test -n "$AWS_SECRET_ACCESS_KEY" || (echo "AWS_SECRET_ACCESS_KEY is empty (set AWS_SECRET_ACCESS_KEY or TF_VAR_storage_secret_key)" && exit 1)
-    - aws --endpoint-url "$S3_ENDPOINT" s3 cp frontend/src/assets/logo.png "s3://${ASSETS_BUCKET}/logo.png"
+    - test -n "$S3_ENDPOINT" || (echo "S3_ENDPOINT is empty" && exit 1)
+    - test -n "$ASSETS_BUCKET" || (echo "ASSETS_BUCKET is empty" && exit 1)
+    - aws --endpoint-url "$S3_ENDPOINT" s3 sync frontend/src/assets "s3://${ASSETS_BUCKET}/assets/" --acl public-read
+    - aws --endpoint-url "$S3_ENDPOINT" s3 cp frontend/public/favicon.ico "s3://${ASSETS_BUCKET}/favicon.ico" --acl public-read
 
 terraform-plan:
   stage: deploy
