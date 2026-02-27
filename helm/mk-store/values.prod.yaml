@@ -17,6 +17,8 @@ ingress:
   enabled: true
   className: nginx
   host: mk-store.example.com
+  ipAccess:
+    enabled: true
   tls:
     enabled: true
     secretName: mk-store-tls

@@ -49,6 +49,10 @@ ingress:
   className: nginx
   host: mk-store.example.com
   annotations: {}
+  ipAccess:
+    enabled: false
+    annotations:
+      nginx.ingress.kubernetes.io/ssl-redirect: "false"
   tls:
     enabled: true
     secretName: mk-store-tls

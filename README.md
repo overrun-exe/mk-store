@@ -91,6 +91,7 @@ GitLab Registry / deploy:
 - `KUBE_CONFIG_B64` (optional fallback: base64 kubeconfig without local `yc` exec plugin)
 - `APP_HOST` (for ingress host)
 - `TLS_SECRET_NAME` (TLS secret)
+- `ENABLE_IP_ACCESS` (`true`/`false`, creates additional hostless ingress for access by external IP)
 - `REGISTRY_PULL_USER` (GitLab Deploy Token username, recommended)
 - `REGISTRY_PULL_PASSWORD` (GitLab Deploy Token password/token, recommended)
 - `APP_JWT_SECRET` (optional app secret)
@@ -162,6 +163,7 @@ yc managed-kubernetes cluster get-credentials --id $(terraform output -raw clust
 ### Option A: via Helm in CI (recommended)
 
 Run manual GitLab job `deploy-production` on `main` or tag.
+If `ENABLE_IP_ACCESS=true`, app is also reachable by external ingress IP over HTTP.
 
 ### Option B: manually from local machine
 

@@ -14,6 +14,7 @@ variables:
   K8S_NAMESPACE: mk-store
   APP_HOST: mk-store.example.com
   TLS_SECRET_NAME: mk-store-tls
+  ENABLE_IP_ACCESS: "true"
   FRONTEND_API_URL: /api
   FRONTEND_PUBLIC_PATH: /
   TF_ROOT: infra/terraform
@@ -343,6 +344,7 @@ deploy-production:
       fi
     - |
       SERVICE_MONITOR="${ENABLE_SERVICE_MONITOR:-false}"
+      IP_ACCESS="${ENABLE_IP_ACCESS:-true}"
       helm upgrade --install mk-store ./helm/mk-store \
         --namespace "$K8S_NAMESPACE" \
         --create-namespace \
@@ -354,5 +356,6 @@ deploy-production:
         --set frontend.image.tag="$IMAGE_TAG" \
         --set ingress.host="$APP_HOST" \
         --set ingress.tls.secretName="$TLS_SECRET_NAME" \
+        --set ingress.ipAccess.enabled="$IP_ACCESS" \
         --set metrics.serviceMonitor.enabled="$SERVICE_MONITOR" \
         --wait --timeout 10m
