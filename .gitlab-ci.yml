@@ -211,7 +211,28 @@ terraform-plan:
       grep -Eq '^[[:space:]]*bucket[[:space:]]*=' backend.hcl || (echo "backend.hcl: missing bucket" >&2 && exit 1)
       grep -Eq '^[[:space:]]*key[[:space:]]*=' backend.hcl || (echo "backend.hcl: missing key" >&2 && exit 1)
       grep -Eq '^[[:space:]]*region[[:space:]]*=' backend.hcl || (echo "backend.hcl: missing region" >&2 && exit 1)
-    - terraform init -backend-config=backend.hcl
+    - |
+      cat > ~/.terraformrc <<'EOF'
+      provider_installation {
+        direct {}
+      }
+      EOF
+
+      terraform init -backend-config=backend.hcl || (
+        echo "Primary terraform init failed. Retrying with Yandex provider mirror..." >&2
+        cat > ~/.terraformrc <<'EOF'
+        provider_installation {
+          network_mirror {
+            url     = "https://terraform-mirror.yandexcloud.net/"
+            include = ["registry.terraform.io/yandex-cloud/*"]
+          }
+          direct {
+            exclude = ["registry.terraform.io/yandex-cloud/*"]
+          }
+        }
+        EOF
+        terraform init -backend-config=backend.hcl
+      )
     - terraform fmt -check
     - terraform validate
     - terraform plan -out tfplan
@@ -249,7 +270,28 @@ terraform-apply:
       grep -Eq '^[[:space:]]*bucket[[:space:]]*=' backend.hcl || (echo "backend.hcl: missing bucket" >&2 && exit 1)
       grep -Eq '^[[:space:]]*key[[:space:]]*=' backend.hcl || (echo "backend.hcl: missing key" >&2 && exit 1)
       grep -Eq '^[[:space:]]*region[[:space:]]*=' backend.hcl || (echo "backend.hcl: missing region" >&2 && exit 1)
-    - terraform init -backend-config=backend.hcl
+    - |
+      cat > ~/.terraformrc <<'EOF'
+      provider_installation {
+        direct {}
+      }
+      EOF
+
+      terraform init -backend-config=backend.hcl || (
+        echo "Primary terraform init failed. Retrying with Yandex provider mirror..." >&2
+        cat > ~/.terraformrc <<'EOF'
+        provider_installation {
+          network_mirror {
+            url     = "https://terraform-mirror.yandexcloud.net/"
+            include = ["registry.terraform.io/yandex-cloud/*"]
+          }
+          direct {
+            exclude = ["registry.terraform.io/yandex-cloud/*"]
+          }
+        }
+        EOF
+        terraform init -backend-config=backend.hcl
+      )
     - terraform apply -auto-approve tfplan
 
 deploy-production:
