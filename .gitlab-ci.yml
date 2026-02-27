@@ -218,7 +218,7 @@ terraform-plan:
       }
       EOF
 
-      terraform init -backend-config=backend.hcl || (
+      if ! terraform init -backend-config=backend.hcl; then
         echo "Primary terraform init failed. Retrying with Yandex provider mirror..." >&2
         cat > ~/.terraformrc <<'EOF'
         provider_installation {
@@ -232,7 +232,7 @@ terraform-plan:
         }
         EOF
         terraform init -backend-config=backend.hcl
-      )
+      fi
     - terraform fmt -check
     - terraform validate
     - terraform plan -out tfplan
@@ -277,7 +277,7 @@ terraform-apply:
       }
       EOF
 
-      terraform init -backend-config=backend.hcl || (
+      if ! terraform init -backend-config=backend.hcl; then
         echo "Primary terraform init failed. Retrying with Yandex provider mirror..." >&2
         cat > ~/.terraformrc <<'EOF'
         provider_installation {
@@ -291,7 +291,7 @@ terraform-apply:
         }
         EOF
         terraform init -backend-config=backend.hcl
-      )
+      fi
     - terraform apply -auto-approve tfplan
 
 deploy-production:
