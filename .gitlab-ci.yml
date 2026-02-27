@@ -178,6 +178,10 @@ upload-static-assets:
     - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
     - if: '$CI_COMMIT_TAG'
   script:
+    - export AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_ID:-$TF_VAR_storage_access_key}"
+    - export AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY:-$TF_VAR_storage_secret_key}"
+    - test -n "$AWS_ACCESS_KEY_ID" || (echo "AWS_ACCESS_KEY_ID is empty (set AWS_ACCESS_KEY_ID or TF_VAR_storage_access_key)" && exit 1)
+    - test -n "$AWS_SECRET_ACCESS_KEY" || (echo "AWS_SECRET_ACCESS_KEY is empty (set AWS_SECRET_ACCESS_KEY or TF_VAR_storage_secret_key)" && exit 1)
     - aws --endpoint-url "$S3_ENDPOINT" s3 cp frontend/src/assets/logo.png "s3://${ASSETS_BUCKET}/logo.png"
 
 terraform-plan:

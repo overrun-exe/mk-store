@@ -104,8 +104,8 @@ Terraform / Object Storage:
 - `TF_BACKEND_CONFIG` (content of `infra/terraform/backend.hcl`)
 - `S3_ENDPOINT` (for Yandex Object Storage, usually `https://storage.yandexcloud.net`)
 - `ASSETS_BUCKET`
-- `AWS_ACCESS_KEY_ID`
-- `AWS_SECRET_ACCESS_KEY`
+- `AWS_ACCESS_KEY_ID` (optional if `TF_VAR_storage_access_key` is set)
+- `AWS_SECRET_ACCESS_KEY` (optional if `TF_VAR_storage_secret_key` is set)
 
 Terraform provider vars (recommended in CI as protected/masked):
 - `TF_VAR_yc_token`
