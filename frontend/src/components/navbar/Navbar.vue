@@ -30,7 +30,6 @@
 <script lang="ts">
 import { defineComponent } from 'vue';
 import CartIcon from './CartIcon.vue';
-import logoLocal from '@/assets/logo.png';
 
 export default defineComponent({
   components: {
@@ -40,7 +39,8 @@ export default defineComponent({
     logoSrc(): string {
       const base = (process.env.VUE_APP_ASSETS_BASE_URL || '').replace(/\/+$/, '');
       if (!base) {
-        return logoLocal;
+        const publicPath = process.env.BASE_URL || '/';
+        return `${publicPath.replace(/\/+$/, '/')}logo.png`;
       }
 
       return `${base}/logo.png`;

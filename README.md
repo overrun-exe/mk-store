@@ -216,6 +216,7 @@ Frontend build uses `VUE_APP_ASSETS_BASE_URL` and reads logo from S3
 (`$VUE_APP_ASSETS_BASE_URL/logo.png`). If it is not set, CI computes it from
 `S3_ENDPOINT` and `ASSETS_BUCKET`.
 CI upload sets `public-read` ACL for these objects so browser can fetch them.
+If S3 URL is not configured, frontend falls back to local `public/logo.png`.
 
 ## Secrets handling
 
