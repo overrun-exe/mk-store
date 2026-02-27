@@ -234,7 +234,24 @@ deploy-production:
     url: https://$APP_HOST
   script:
     - mkdir -p ~/.kube
-    - echo "$KUBE_CONFIG_B64" | base64 -d > ~/.kube/config
+    - |
+      if [ -n "$KUBE_URL" ] && [ -n "$KUBE_TOKEN" ]; then
+        kubectl config set-cluster mk-store --server="$KUBE_URL" --insecure-skip-tls-verify=true
+        kubectl config set-credentials deployer --token="$KUBE_TOKEN"
+        kubectl config set-context mk-store --cluster=mk-store --user=deployer --namespace="$K8S_NAMESPACE"
+        kubectl config use-context mk-store
+      elif [ -n "$KUBE_CONFIG_B64" ]; then
+        echo "$KUBE_CONFIG_B64" | base64 -d > ~/.kube/config
+        sed -i -E 's#command: .*/yc#command: yc#g' ~/.kube/config || true
+
+        if grep -Eq 'command: .*yc' ~/.kube/config; then
+          echo "KUBE_CONFIG_B64 contains yc exec-auth plugin. In CI, use KUBE_URL and KUBE_TOKEN variables instead." >&2
+          exit 1
+        fi
+      else
+        echo "Set either KUBE_URL + KUBE_TOKEN or KUBE_CONFIG_B64 in GitLab CI/CD Variables." >&2
+        exit 1
+      fi
     - kubectl create namespace "$K8S_NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -
     - |
       REGISTRY_PULL_USERNAME="${REGISTRY_PULL_USER:-$CI_REGISTRY_USER}"

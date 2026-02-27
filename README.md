@@ -86,7 +86,9 @@ Pipeline is defined in `.gitlab-ci.yml` and contains stages:
 ### Required GitLab CI/CD variables
 
 GitLab Registry / deploy:
-- `KUBE_CONFIG_B64` (base64 kubeconfig)
+- `KUBE_URL` (recommended, Kubernetes API endpoint, e.g. `https://<ip-or-fqdn>`)
+- `KUBE_TOKEN` (recommended, bearer token for deploy user/service account)
+- `KUBE_CONFIG_B64` (optional fallback: base64 kubeconfig without local `yc` exec plugin)
 - `APP_HOST` (for ingress host)
 - `TLS_SECRET_NAME` (TLS secret)
 - `REGISTRY_PULL_USER` (GitLab Deploy Token username, recommended)
