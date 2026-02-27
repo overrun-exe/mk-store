@@ -33,9 +33,9 @@ variable "cluster_name" {
 }
 
 variable "kubernetes_version" {
-  description = "Kubernetes version"
+  description = "Kubernetes version. Leave empty to use default for release channel."
   type        = string
-  default     = "1.30"
+  default     = ""
 }
 
 variable "node_count" {

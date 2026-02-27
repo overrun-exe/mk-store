@@ -25,6 +25,7 @@ cp backend.hcl.example backend.hcl
    - keep endpoint as full URL (`https://storage.yandexcloud.net`)
    - `assets_bucket_name` is used for static files upload
    - set `create_assets_bucket = true` only if you want terraform to create assets bucket
+   - set `kubernetes_version = ""` to use current default version for selected release channel
 
 4. Initialize terraform with S3 backend:
 

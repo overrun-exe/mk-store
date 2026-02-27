@@ -7,7 +7,7 @@ resource "yandex_kubernetes_cluster" "main" {
   network_policy_provider = "CALICO"
 
   master {
-    version   = var.kubernetes_version
+    version   = var.kubernetes_version != "" ? var.kubernetes_version : null
     public_ip = true
 
     zonal {
@@ -37,7 +37,7 @@ resource "yandex_kubernetes_cluster" "main" {
 resource "yandex_kubernetes_node_group" "main" {
   cluster_id = yandex_kubernetes_cluster.main.id
   name       = "${var.cluster_name}-node-group"
-  version    = var.kubernetes_version
+  version    = var.kubernetes_version != "" ? var.kubernetes_version : null
 
   instance_template {
     platform_id = var.node_platform_id
